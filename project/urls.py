@@ -21,7 +21,10 @@ from circle import views as circle_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api-auth/', include('rest_framework.urls')),
-    path('api/example/', circle_views.ExampleView.as_view(), name="api-example"),
+    path('example/', circle_views.ExampleView.as_view(), name="example"),
+    path('auth/', include('djoser.urls')),
+    path('auth/', include('djoser.urls.authtoken')),
+
 ]
 
 if settings.DEBUG:

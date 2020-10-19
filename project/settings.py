@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'django_extensions',
     'rest_framework',
     'rest_framework.authtoken',
+    'djoser',
 
     # Project-specific
     'users',
