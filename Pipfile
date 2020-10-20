@@ -18,6 +18,7 @@ djangorestframework = "*"
 markdown = "*"
 django-filter = "*"
 djoser = "*"
+django-cors-headers = "*"
 
 [requires]
 python_version = "3.8"
