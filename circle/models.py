@@ -54,7 +54,14 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 class Circle(models.Model):
     name = models.CharField(max_length=255)
-    members = models.ManyToManyField(to=User, through='CircleMembership')
+    members = models.ManyToManyField(
+        to=User,
+        through='CircleMembership',
+        related_name='circles'
+    )
+
+    def __str__(self):
+        return self.name
 
 class CircleRole(models.TextChoices):
     OWNER = 'OWNER', 'Owner'
@@ -63,9 +70,12 @@ class CircleRole(models.TextChoices):
 
 class CircleMembership(models.Model):
     user = models.ForeignKey(to=User, on_delete=models.CASCADE, related_name='memberships')
-    circle = models.ForeignKey(to=Circle, on_delete=models.CASCADE, related_name='membership')
+    circle = models.ForeignKey(to=Circle, on_delete=models.CASCADE, related_name='memberships')
     role = models.CharField(max_length=10, choices=CircleRole.choices, default=CircleRole.MEMBER)
     joined_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.user} - {self.circle}"
 
 class Post(models.Model):
     body = models.TextField()

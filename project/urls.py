@@ -17,6 +17,10 @@ from django.contrib import admin
 from django.conf import settings
 from django.urls import include, path
 from circle import views as circle_views
+from rest_framework.routers import DefaultRouter
+
+api_router = DefaultRouter()
+api_router.register('circles', circle_views.CircleViewSet, basename='circle')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,6 +28,7 @@ urlpatterns = [
     path('example/', circle_views.ExampleView.as_view(), name="example"),
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.authtoken')),
+    path('', include(api_router.urls)),
 
 ]
 
