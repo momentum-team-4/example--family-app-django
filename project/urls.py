@@ -15,12 +15,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import include, path
 from circle import views as circle_views
 from rest_framework.routers import DefaultRouter
 
 api_router = DefaultRouter()
 api_router.register('circles', circle_views.CircleViewSet, basename='circle')
+api_router.register('posts', circle_views.PostViewSet, basename='post')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,8 +31,7 @@ urlpatterns = [
     path('auth/', include('djoser.urls')),
     path('auth/', include('djoser.urls.authtoken')),
     path('', include(api_router.urls)),
-
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
     import debug_toolbar

@@ -81,4 +81,5 @@ class Post(models.Model):
     body = models.TextField()
     author = models.ForeignKey(to=User, on_delete=models.CASCADE)
     circle = models.ForeignKey(to=Circle, on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='post_images/', null=True, blank=True)
     posted_at = models.DateTimeField(auto_now_add=True)
