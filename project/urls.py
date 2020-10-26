@@ -23,6 +23,7 @@ from rest_framework.routers import DefaultRouter
 api_router = DefaultRouter()
 api_router.register('circles', circle_views.CircleViewSet, basename='circle')
 api_router.register('posts', circle_views.PostViewSet, basename='post')
+api_router.register('invitations', circle_views.CircleInvitationViewSet, basename='circleinvitation')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

@@ -77,6 +77,21 @@ class CircleMembership(models.Model):
     def __str__(self):
         return f"{self.user} - {self.circle}"
 
+class CircleInvitation(models.Model):
+    """
+    In order to add someone to a circle, you must invite them and they must accept.
+    """
+    invitee = models.ForeignKey(to=User, on_delete=models.CASCADE, related_name='invitations')
+    circle = models.ForeignKey(to=Circle, on_delete=models.CASCADE, related_name='invitations')
+    role = models.CharField(max_length=10, choices=CircleRole.choices, default=CircleRole.MEMBER)
+    accepted = models.BooleanField(default=False)
+    invited_at = models.DateTimeField(auto_now_add=True)
+
+    def accept(self):
+        self.accepted = True
+        self.save()
+        self.circle.memberships.create(user=self.user, role=self.role)
+
 class Post(models.Model):
     body = models.TextField()
     author = models.ForeignKey(to=User, on_delete=models.CASCADE)
