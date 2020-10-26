@@ -1,7 +1,7 @@
 from rest_framework.generics import get_object_or_404
-from circle.models import Circle, CircleMembership, CircleRole, Post, User
+from circle.models import Circle, CircleInvitation, CircleMembership, CircleRole, Post, User
 from rest_framework.decorators import action
-from circle.serializers import CircleMembershipInvitationSerializer, CircleSerializer, PostInSerializer, PostOutSerializer
+from circle.serializers import CircleInvitationSerializer, CircleSerializer, PostInSerializer, PostOutSerializer
 from rest_framework.views import APIView, Response
 from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
 from rest_framework.viewsets import ModelViewSet, ViewSet
@@ -61,7 +61,7 @@ class CircleViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsCircleOwner]
 
     def get_queryset(self):
-        return self.request.user.circles
+        return self.request.user.circles.all()
 
     def perform_create(self, serializer):
         """
@@ -134,14 +134,17 @@ class CircleInvitationViewSet(ViewSet):
         circle_pk = self.request.query_params.get('circle', None)
         if circle_pk:
             circle = get_object_or_404(Circle, pk=circle_pk)
-            membership = circle.memberships.filter(Q(user=request.user), Q(role=CircleRole.OWNER) | Q(role=CircleRole.ADMIN)).first()
-            if not membership:
+            if not circle.is_owner_or_admin(request.user):
                 raise PermissionDenied(detail="You must be an owner or admin of the circle.")
-            serializer = CircleMembershipInvitationSerializer(instance=circle.invitations.all(), many=True, context={'request': request})
+            serializer = CircleInvitationSerializer(instance=circle.invitations.all(), many=True, context={'request': request})
             return Response(serializer.data)
 
-        serializer = CircleMembershipInvitationSerializer(instance=request.user.invitations.all(), many=True, context={'request': request})
+        serializer = CircleInvitationSerializer(instance=request.user.invitations.all(), many=True, context={'request': request})
         return Response(serializer.data)
 
     def retrieve(self, request, pk):
-        pass
+        invitation = get_object_or_404(CircleInvitation, pk=pk)
+        if request.user != invitation.invitee or not invitation.circle.is_owner_or_admin(request.user):
+            raise PermissionDenied(detail="You must be the invitee or an owner or admin of the circle.")
+        serializer = CircleInvitationSerializer(instance=invitation, context={'request': request})
+        return Response(serializer.data)

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.db.models.query_utils import Q
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 
@@ -62,6 +63,9 @@ class Circle(models.Model):
 
     def __str__(self):
         return self.name
+
+    def is_owner_or_admin(self, user):
+        return self.memberships.filter(Q(user=user), Q(role=CircleRole.ADMIN) | Q(role=CircleRole.OWNER)).count() > 0
 
 class CircleRole(models.TextChoices):
     OWNER = 'OWNER', 'Owner'

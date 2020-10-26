@@ -23,7 +23,7 @@ class PostOutSerializer(serializers.HyperlinkedModelSerializer):
         model = Post
         fields = ['url', 'author', 'circle', 'body', 'image', 'posted_at']
 
-class CircleMembershipInvitationSerializer(serializers.HyperlinkedModelSerializer):
+class CircleInvitationSerializer(serializers.HyperlinkedModelSerializer):
     invitee = serializers.SlugRelatedField(slug_field='email', queryset=User.objects.all())
 
     class Meta:
