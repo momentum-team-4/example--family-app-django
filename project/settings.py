@@ -163,3 +163,8 @@ from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'content-disposition',
 ]
+
+# Configure Django App for Heroku.
+import django_heroku
+django_heroku.settings(locals())
+del DATABASES['default']['OPTIONS']['sslmode']
