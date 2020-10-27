@@ -1,12 +1,26 @@
 from rest_framework.generics import get_object_or_404
-from circle.models import Circle, CircleInvitation, CircleMembership, CircleRole, Post, User
+from rest_framework import status
+from circle.models import (
+    Circle,
+    CircleInvitation,
+    CircleMembership,
+    CircleRole,
+    Post,
+    User,
+)
 from rest_framework.decorators import action
-from circle.serializers import CircleInvitationSerializer, CircleSerializer, PostInSerializer, PostOutSerializer
+from circle.serializers import (
+    CircleInvitationAcceptSerializer,
+    CircleInvitationSerializer,
+    CircleSerializer,
+    PostInSerializer,
+    PostOutSerializer,
+)
 from rest_framework.views import APIView, Response
 from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
 from rest_framework.viewsets import ModelViewSet, ViewSet
 from rest_framework.parsers import JSONParser, FileUploadParser
-from rest_framework.exceptions import ParseError, PermissionDenied
+from rest_framework.exceptions import ParseError, PermissionDenied, ValidationError
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 
@@ -33,6 +47,7 @@ class ExampleView(APIView):
     def get(self, request):
         return Response({"ok": True})
 
+
 class IsCircleOwner(BasePermission):
     def has_permission(self, request, view):
         return True
@@ -42,9 +57,10 @@ class IsCircleOwner(BasePermission):
             return True
 
         owners = User.objects.filter(
-            memberships__circle=obj,
-            memberships__role=CircleRole.OWNER)
+            memberships__circle=obj, memberships__role=CircleRole.OWNER
+        )
         return request.user in owners
+
 
 class IsPostAuthor(BasePermission):
     def has_permission(self, request, view):
@@ -55,6 +71,7 @@ class IsPostAuthor(BasePermission):
             return True
 
         return request.user == obj.author
+
 
 class CircleViewSet(ModelViewSet):
     serializer_class = CircleSerializer
@@ -69,10 +86,8 @@ class CircleViewSet(ModelViewSet):
         as an owner.
         """
         circle = serializer.save()
-        circle.memberships.create(
-            user=self.request.user,
-            role=CircleRole.OWNER
-        )
+        circle.memberships.create(user=self.request.user, role=CircleRole.OWNER)
+
 
 class PostViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsPostAuthor]
@@ -82,15 +97,15 @@ class PostViewSet(ModelViewSet):
     @action(detail=False)
     def mine(self, request):
         posts = Post.objects.filter(author=self.request.user).order_by("-posted_at")
-        serializer = PostOutSerializer(posts, many=True, context={'request': request})
+        serializer = PostOutSerializer(posts, many=True, context={"request": request})
         return Response(serializer.data)
 
-    @action(detail=True, methods=['PUT'])
+    @action(detail=True, methods=["PUT"])
     def image(self, request, pk, format=None):
-        if 'file' not in request.data:
-            raise ParseError('Empty content')
+        if "file" not in request.data:
+            raise ParseError("Empty content")
 
-        file = request.data['file']
+        file = request.data["file"]
         post = self.get_object()
 
         post.image.save(file.name, file, save=True)
@@ -103,7 +118,7 @@ class PostViewSet(ModelViewSet):
 
     def get_queryset(self):
         posts = Post.objects
-        circle_pk = self.request.query_params.get('circle', None)
+        circle_pk = self.request.query_params.get("circle", None)
         if circle_pk:
             posts = posts.filter(circle__pk=circle_pk)
 
@@ -113,13 +128,14 @@ class PostViewSet(ModelViewSet):
 
     def get_parser_classes(self):
         print(self.action)
-        if self.action == 'image':
+        if self.action == "image":
             return [FileUploadParser]
 
         return [JSONParser]
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
+
 
 class CircleInvitationViewSet(ViewSet):
     """
@@ -129,22 +145,78 @@ class CircleInvitationViewSet(ViewSet):
     PATCH /invitations/<pk>/ -- accept an invitation (if you are the invited person)
     DELETE /invitations/<pk>/ -- delete invitation (if you are the invitee or an owner or admin of the circle)
     """
+
     def list(self, request):
         """Show all invitations for a user or for a circle."""
-        circle_pk = self.request.query_params.get('circle', None)
+        circle_pk = self.request.query_params.get("circle", None)
         if circle_pk:
             circle = get_object_or_404(Circle, pk=circle_pk)
             if not circle.is_owner_or_admin(request.user):
-                raise PermissionDenied(detail="You must be an owner or admin of the circle.")
-            serializer = CircleInvitationSerializer(instance=circle.invitations.all(), many=True, context={'request': request})
+                raise PermissionDenied(
+                    detail="You must be an owner or admin of the circle."
+                )
+            serializer = CircleInvitationSerializer(
+                instance=circle.invitations.all(),
+                many=True,
+                context={"request": request},
+            )
             return Response(serializer.data)
 
-        serializer = CircleInvitationSerializer(instance=request.user.invitations.all(), many=True, context={'request': request})
+        serializer = CircleInvitationSerializer(
+            instance=request.user.invitations.all(),
+            many=True,
+            context={"request": request},
+        )
         return Response(serializer.data)
+
+    def create(self, request):
+        serializer = CircleInvitationSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        circle = serializer.validated_data["circle"]
+        invitee = serializer.validated_data["invitee"]
+        if not circle.is_owner_or_admin(request.user):
+            raise PermissionDenied(
+                detail="You must be an owner or admin of the circle to invite someone."
+            )
+        if invitee in circle.members.all():
+            raise ValidationError(detail="This user is already in this circle.")
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def retrieve(self, request, pk):
         invitation = get_object_or_404(CircleInvitation, pk=pk)
-        if request.user != invitation.invitee or not invitation.circle.is_owner_or_admin(request.user):
-            raise PermissionDenied(detail="You must be the invitee or an owner or admin of the circle.")
-        serializer = CircleInvitationSerializer(instance=invitation, context={'request': request})
+        if (
+            request.user != invitation.invitee
+            and not invitation.circle.is_owner_or_admin(request.user)
+        ):
+            raise PermissionDenied(
+                detail="You must be the invitee or an owner or admin of the circle."
+            )
+        serializer = CircleInvitationSerializer(
+            instance=invitation, context={"request": request}
+        )
         return Response(serializer.data)
+
+    def partial_update(self, request, pk):
+        invitation = get_object_or_404(CircleInvitation, pk=pk)
+        if request.user != invitation.invitee:
+            raise PermissionDenied(detail="You must be the invitee.")
+        serializer = CircleInvitationAcceptSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        invitation.accept()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def destroy(self, request, pk):
+        invitation = get_object_or_404(CircleInvitation, pk=pk)
+        if (
+            request.user != invitation.invitee
+            and not invitation.circle.is_owner_or_admin(request.user)
+        ):
+            raise PermissionDenied(
+                detail="You must be the invitee or an owner or admin of the circle."
+            )
+
+        invitation.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
