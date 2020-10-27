@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Circle, CircleMembership, CircleInvitation, Post, User
+from .models import Circle, CircleInvitation, Post, User
 
 
 class CircleSerializer(serializers.HyperlinkedModelSerializer):

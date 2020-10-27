@@ -1,14 +1,13 @@
-from rest_framework.generics import get_object_or_404
 from rest_framework import status
-from circle.models import (
-    Circle,
-    CircleInvitation,
-    CircleMembership,
-    CircleRole,
-    Post,
-    User,
-)
 from rest_framework.decorators import action
+from rest_framework.exceptions import ParseError, PermissionDenied, ValidationError
+from rest_framework.generics import get_object_or_404
+from rest_framework.parsers import FileUploadParser, JSONParser
+from rest_framework.permissions import SAFE_METHODS, BasePermission, IsAuthenticated
+from rest_framework.views import Response
+from rest_framework.viewsets import ModelViewSet, ViewSet
+
+from circle.models import Circle, CircleInvitation, CircleRole, Post, User
 from circle.serializers import (
     CircleInvitationAcceptSerializer,
     CircleInvitationSerializer,
@@ -16,14 +15,6 @@ from circle.serializers import (
     PostInSerializer,
     PostOutSerializer,
 )
-from rest_framework.views import APIView, Response
-from rest_framework.permissions import BasePermission, IsAuthenticated, SAFE_METHODS
-from rest_framework.viewsets import ModelViewSet, ViewSet
-from rest_framework.parsers import JSONParser, FileUploadParser
-from rest_framework.exceptions import ParseError, PermissionDenied, ValidationError
-from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
-
 
 """
 - viewset for posts
@@ -41,11 +32,6 @@ from django.db.models import Q
 
 - separate view to add a new circle member
 """
-
-
-class ExampleView(APIView):
-    def get(self, request):
-        return Response({"ok": True})
 
 
 class IsCircleOwner(BasePermission):
@@ -76,6 +62,7 @@ class IsPostAuthor(BasePermission):
 class CircleViewSet(ModelViewSet):
     serializer_class = CircleSerializer
     permission_classes = [IsAuthenticated, IsCircleOwner]
+    pagination_class = None
 
     def get_queryset(self):
         return self.request.user.circles.all()
@@ -92,7 +79,6 @@ class CircleViewSet(ModelViewSet):
 class PostViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, IsPostAuthor]
     parser_classes = [JSONParser, FileUploadParser]
-    pagination_class = PageNumberPagination
 
     @action(detail=False)
     def mine(self, request):
@@ -117,7 +103,9 @@ class PostViewSet(ModelViewSet):
         return PostInSerializer
 
     def get_queryset(self):
-        posts = Post.objects
+        posts = Post.objects.select_related("author", "circle").prefetch_related(
+            "circle__members"
+        )
         circle_pk = self.request.query_params.get("circle", None)
         if circle_pk:
             posts = posts.filter(circle__pk=circle_pk)
@@ -141,10 +129,16 @@ class CircleInvitationViewSet(ViewSet):
     """
     GET /invitations/ -- get all your invites to circles
     GET /invitations/?circle=circle_pk -- get all invites to a circle (if you are an owner or admin)
+    GET /invitations/<pk>/ -- view an invitation to a circle
     POST /invitations/ -- create an invitation to a circle (if you are an owner or admin)
     PATCH /invitations/<pk>/ -- accept an invitation (if you are the invited person)
     DELETE /invitations/<pk>/ -- delete invitation (if you are the invitee or an owner or admin of the circle)
     """
+
+    def does_not_have_access(self, invitation, user):
+        return not (
+            user == invitation.invitee or invitation.circle.is_owner_or_admin(user)
+        )
 
     def list(self, request):
         """Show all invitations for a user or for a circle."""
@@ -155,15 +149,12 @@ class CircleInvitationViewSet(ViewSet):
                 raise PermissionDenied(
                     detail="You must be an owner or admin of the circle."
                 )
-            serializer = CircleInvitationSerializer(
-                instance=circle.invitations.all(),
-                many=True,
-                context={"request": request},
-            )
-            return Response(serializer.data)
+            invitations = circle.invitations.all()
+        else:
+            invitations = request.user.invitations.all()
 
         serializer = CircleInvitationSerializer(
-            instance=request.user.invitations.all(),
+            instance=invitations,
             many=True,
             context={"request": request},
         )
@@ -187,10 +178,11 @@ class CircleInvitationViewSet(ViewSet):
 
     def retrieve(self, request, pk):
         invitation = get_object_or_404(CircleInvitation, pk=pk)
-        if (
-            request.user != invitation.invitee
-            and not invitation.circle.is_owner_or_admin(request.user)
-        ):
+
+        # DeMorgan's Law
+        # not a and not b == not (a or b)
+
+        if self.does_not_have_access(invitation, request.user):
             raise PermissionDenied(
                 detail="You must be the invitee or an owner or admin of the circle."
             )
@@ -210,10 +202,7 @@ class CircleInvitationViewSet(ViewSet):
 
     def destroy(self, request, pk):
         invitation = get_object_or_404(CircleInvitation, pk=pk)
-        if (
-            request.user != invitation.invitee
-            and not invitation.circle.is_owner_or_admin(request.user)
-        ):
+        if self.does_not_have_access(invitation, request.user):
             raise PermissionDenied(
                 detail="You must be the invitee or an owner or admin of the circle."
             )

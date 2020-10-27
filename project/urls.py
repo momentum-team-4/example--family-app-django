@@ -21,24 +21,25 @@ from circle import views as circle_views
 from rest_framework.routers import DefaultRouter
 
 api_router = DefaultRouter()
-api_router.register('circles', circle_views.CircleViewSet, basename='circle')
-api_router.register('posts', circle_views.PostViewSet, basename='post')
-api_router.register('invitations', circle_views.CircleInvitationViewSet, basename='circleinvitation')
+api_router.register("circles", circle_views.CircleViewSet, basename="circle")
+api_router.register("posts", circle_views.PostViewSet, basename="post")
+api_router.register(
+    "invitations", circle_views.CircleInvitationViewSet, basename="circleinvitation"
+)
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api-auth/', include('rest_framework.urls')),
-    path('example/', circle_views.ExampleView.as_view(), name="example"),
-    path('auth/', include('djoser.urls')),
-    path('auth/', include('djoser.urls.authtoken')),
-    path('', include(api_router.urls)),
+    path("admin/", admin.site.urls),
+    path("api-auth/", include("rest_framework.urls")),
+    path("auth/", include("djoser.urls")),
+    path("auth/", include("djoser.urls.authtoken")),
+    path("", include(api_router.urls)),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 if settings.DEBUG:
     import debug_toolbar
-    urlpatterns = [
-        path('__debug__/', include(debug_toolbar.urls)),
 
+    urlpatterns = [
+        path("__debug__/", include(debug_toolbar.urls)),
         # For django versions before 2.0:
         # url(r'^__debug__/', include(debug_toolbar.urls)),
     ] + urlpatterns
