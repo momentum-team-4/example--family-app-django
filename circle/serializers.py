@@ -1,14 +1,19 @@
 from rest_framework import serializers
 
-from .models import Circle, CircleInvitation, Post, User
+from .models import Circle, CircleInvitation, CircleMembership, Post, User
 
 
 class CircleSerializer(serializers.HyperlinkedModelSerializer):
     members = serializers.SlugRelatedField(slug_field="name", read_only=True, many=True)
+    role = serializers.SerializerMethodField()
+
+    def get_role(self, obj):
+        user = self.context["request"].user
+        return obj.memberships.get(user=user).role
 
     class Meta:
         model = Circle
-        fields = ["url", "name", "members"]
+        fields = ["pk", "url", "name", "members", "role"]
 
 
 class PostInSerializer(serializers.HyperlinkedModelSerializer):
